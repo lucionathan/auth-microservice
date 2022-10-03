@@ -3,6 +3,7 @@ package auth.controller;
 import auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,4 +24,10 @@ public class AuthController {
     public ResponseEntity<?> validate(@RequestHeader String token) {
         return authService.validate(token);
     }
+
+    @GetMapping
+    public void test() throws Exception {
+        authService.test();
+    }
+
 }
