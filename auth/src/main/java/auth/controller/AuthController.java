@@ -27,7 +27,7 @@ public class AuthController {
 
     @GetMapping
     public void test() throws Exception {
-        authService.test();
+        authService.test("test");
     }
 
 }
