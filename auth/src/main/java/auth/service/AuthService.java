@@ -4,10 +4,7 @@ import auth.model.User;
 import auth.security.JwtTokenProvider;
 import com.google.api.core.ApiFuture;
 import com.google.api.gax.rpc.NotFoundException;
-import com.google.cloud.firestore.DocumentReference;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.QueryDocumentSnapshot;
-import com.google.cloud.firestore.QuerySnapshot;
+import com.google.cloud.firestore.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +13,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -43,13 +42,29 @@ public class AuthService {
         return new ResponseEntity<>(jwtTokenProvider.validateToken(token), HttpStatus.OK);
     }
 
-    public void test() throws Exception {
+    public void register(String client, String secret) throws Exception {
 
         Firestore firestore = firebaseService.getApp();
-        ApiFuture<QuerySnapshot> future = firestore.collection("user").get();
-        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
-        for (QueryDocumentSnapshot document : documents) {
-            System.out.println(document.getId() + " => " + document.toObject(User.class));
-        }
+
+        Map<String, Object> docData = new HashMap<>();
+
+        docData.put("password", secret);
+
+        ApiFuture<WriteResult> future = firestore.collection("user").document(client).set(docData);
+        System.out.println("Update time : " + future.get().getUpdateTime());
+    }
+    
+    public void test(String test) throws Exception {
+
+        Firestore firestore = firebaseService.getApp();
+        DocumentReference docRef = firestore.collection("user").document(test);
+        ApiFuture<DocumentSnapshot> future = docRef.get();
+        DocumentSnapshot document = future.get();
+        System.out.println("Document data: " + document.getData());
+
+//        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
+//        for (QueryDocumentSnapshot document : documents) {
+//            System.out.println(document.getId() + " => " + document.toObject(User.class));
+//        }
     }
 }
