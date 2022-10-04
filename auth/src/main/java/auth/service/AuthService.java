@@ -1,6 +1,7 @@
 package auth.service;
 
 import auth.model.User;
+import auth.model.UserRegisterDTO;
 import auth.security.JwtTokenProvider;
 import com.google.api.core.ApiFuture;
 import com.google.api.gax.rpc.NotFoundException;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 @Service
 @RequiredArgsConstructor
@@ -42,18 +44,25 @@ public class AuthService {
         return new ResponseEntity<>(jwtTokenProvider.validateToken(token), HttpStatus.OK);
     }
 
-    public void register(String client, String secret) throws Exception {
+    public ResponseEntity<?> register(UserRegisterDTO user) {
 
-        Firestore firestore = firebaseService.getApp();
+        try {
 
-        Map<String, Object> docData = new HashMap<>();
+            Firestore firestore = firebaseService.getApp();
 
-        docData.put("password", secret);
+            Map<String, String> docData = new HashMap<>();
+            //TODO cript the password
+            docData.put("secret", user.getSecret());
 
-        ApiFuture<WriteResult> future = firestore.collection("user").document(client).set(docData);
-        System.out.println("Update time : " + future.get().getUpdateTime());
+            ApiFuture<WriteResult> future = firestore.collection("user").document(user.getClient()).set(docData, SetOptions.merge());
+
+            return new ResponseEntity<>(future, HttpStatus.OK);
+        } catch ( Exception e) {
+            LOGGER.error("m=Register stage=error stacktrace={}" + e.getStackTrace());
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
     }
-    
+
     public void test(String test) throws Exception {
 
         Firestore firestore = firebaseService.getApp();
