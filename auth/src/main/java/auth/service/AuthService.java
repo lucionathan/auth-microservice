@@ -3,6 +3,7 @@ package auth.service;
 import auth.model.User;
 import auth.model.UserRegisterDTO;
 import auth.security.JwtTokenProvider;
+import auth.security.WebSecurityConfig;
 import com.google.api.core.ApiFuture;
 import com.google.api.gax.rpc.NotFoundException;
 import com.google.cloud.firestore.*;
@@ -12,11 +13,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
 
 @Service
@@ -25,16 +29,28 @@ public class AuthService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AuthService.class);
     private final JwtTokenProvider jwtTokenProvider;
-
+    private final PasswordEncoder passwordEncoder;
     private final FirebaseService firebaseService;
 
     public ResponseEntity<?> login(String client, String secret) {
         try {
             //TODO check if user exists in firebase and secret is right
-            LOGGER.debug("m=Login");
+            //TODO fix the exceptions
+
+            Firestore firestore = firebaseService.getApp();
+            DocumentReference docRef = firestore.collection("user").document(client);
+            ApiFuture<DocumentSnapshot> future = docRef.get();
+            System.out.println(future.get().getData().get("secret"));
+            if(future.get().getData() == null) {
+                throw new NoSuchElementException("User not found");
+            } else if (!passwordEncoder.matches(secret, (String) future.get().getData().get("secret"))) {
+                throw new NoSuchElementException("wrong password");
+            }
+
+            LOGGER.debug("m=Login succeeded");
             return new ResponseEntity<>(jwtTokenProvider.createToken(client), HttpStatus.OK);
-        } catch (NotFoundException e) {
-            LOGGER.error("m=Login stage=error stacktrace={}" + e.getStackTrace());
+        } catch (NoSuchElementException | InterruptedException | ExecutionException e) {
+            LOGGER.error("m=Login stage=error stacktrace={}", e.getStackTrace());
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
 
@@ -51,8 +67,8 @@ public class AuthService {
             Firestore firestore = firebaseService.getApp();
 
             Map<String, String> docData = new HashMap<>();
-            //TODO cript the password
-            docData.put("secret", user.getSecret());
+
+            docData.put("secret", passwordEncoder.encode(user.getSecret()));
 
             ApiFuture<WriteResult> future = firestore.collection("user").document(user.getClient()).set(docData, SetOptions.merge());
 
@@ -69,7 +85,11 @@ public class AuthService {
         DocumentReference docRef = firestore.collection("user").document(test);
         ApiFuture<DocumentSnapshot> future = docRef.get();
         DocumentSnapshot document = future.get();
-        System.out.println("Document data: " + document.getData());
+        Object vsf = future.get().getData();
+        if(future.get().getData() == null) {
+            throw new NoSuchElementException("vai se lascar java");
+        }
+//        System.out.println(data.getClass());
 
 //        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
 //        for (QueryDocumentSnapshot document : documents) {
