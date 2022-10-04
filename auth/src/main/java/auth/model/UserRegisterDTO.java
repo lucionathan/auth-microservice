@@ -3,8 +3,8 @@ package auth.model;
 import lombok.Data;
 
 @Data
-public class User {
-
+public class UserRegisterDTO {
+    private String client;
     private String secret;
 
 }
