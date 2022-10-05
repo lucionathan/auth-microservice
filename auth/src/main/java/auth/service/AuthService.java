@@ -28,7 +28,6 @@ public class AuthService {
 
     public ResponseEntity<?> login(String client, String secret) {
         try {
-            //TODO check if user exists in firebase and secret is right
             //TODO fix the exceptions
 
             Firestore firestore = firebaseService.getApp();
