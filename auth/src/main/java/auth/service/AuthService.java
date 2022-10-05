@@ -1,24 +1,18 @@
 package auth.service;
 
-import auth.model.User;
 import auth.model.UserRegisterDTO;
 import auth.security.JwtTokenProvider;
-import auth.security.WebSecurityConfig;
 import com.google.api.core.ApiFuture;
-import com.google.api.gax.rpc.NotFoundException;
 import com.google.cloud.firestore.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import javax.annotation.Nullable;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutionException;
@@ -44,7 +38,7 @@ public class AuthService {
             if(future.get().getData() == null) {
                 throw new NoSuchElementException("User not found");
             } else if (!passwordEncoder.matches(secret, (String) future.get().getData().get("secret"))) {
-                throw new NoSuchElementException("wrong password");
+                throw new IllegalArgumentException("Wrong password");
             }
 
             LOGGER.debug("m=Login succeeded");
@@ -60,22 +54,26 @@ public class AuthService {
         return new ResponseEntity<>(jwtTokenProvider.validateToken(token), HttpStatus.OK);
     }
 
-    public ResponseEntity<?> register(UserRegisterDTO user) {
+    public ResponseEntity<?> register(UserRegisterDTO user, String token) {
 
         try {
-
+            checkUser(token);
             Firestore firestore = firebaseService.getApp();
-
             Map<String, String> docData = new HashMap<>();
-
             docData.put("secret", passwordEncoder.encode(user.getSecret()));
-
             ApiFuture<WriteResult> future = firestore.collection("user").document(user.getClient()).set(docData, SetOptions.merge());
 
             return new ResponseEntity<>(future, HttpStatus.OK);
         } catch ( Exception e) {
             LOGGER.error("m=Register stage=error stacktrace={}" + e.getStackTrace());
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    private void checkUser(String token) {
+        String user = jwtTokenProvider.getUsername(jwtTokenProvider.resolveToken(token));
+        if(!user.equals("admin")) {
+            throw new IllegalArgumentException("User not authorized to register");
         }
     }
 

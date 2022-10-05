@@ -28,9 +28,9 @@ public class AuthController {
         authService.test("lucio");
     }
 
-    @PutMapping("")
-    public ResponseEntity<?> register(@RequestBody UserRegisterDTO user) throws Exception {
-        return authService.register(user);
+    @PutMapping("/register")
+    public ResponseEntity<?> register(@RequestBody UserRegisterDTO user, @RequestHeader String Authorization) {
+        return authService.register(user, Authorization);
     }
 
 }
