@@ -28,11 +28,6 @@ public class AuthController {
         return authService.delete(client, Authorization);
     }
 
-    @GetMapping
-    public void test() throws Exception {
-        authService.test("lucio");
-    }
-
     @PutMapping("/register")
     public ResponseEntity<?> register(@RequestBody UserRegisterDTO user, @RequestHeader String Authorization) {
         return authService.register(user, Authorization);

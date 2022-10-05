@@ -87,22 +87,4 @@ public class AuthService {
             throw new IllegalArgumentException("User not authorized to register");
         }
     }
-
-    public void test(String test) throws Exception {
-
-        Firestore firestore = firebaseService.getApp();
-        DocumentReference docRef = firestore.collection("user").document(test);
-        ApiFuture<DocumentSnapshot> future = docRef.get();
-        DocumentSnapshot document = future.get();
-        Object vsf = future.get().getData();
-        if(future.get().getData() == null) {
-            throw new NoSuchElementException("vai se lascar java");
-        }
-//        System.out.println(data.getClass());
-
-//        List<QueryDocumentSnapshot> documents = future.get().getDocuments();
-//        for (QueryDocumentSnapshot document : documents) {
-//            System.out.println(document.getId() + " => " + document.toObject(User.class));
-//        }
-    }
 }
