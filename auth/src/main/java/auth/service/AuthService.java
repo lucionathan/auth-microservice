@@ -29,7 +29,6 @@ public class AuthService {
     public ResponseEntity<?> login(String client, String secret) {
         try {
             //TODO fix the exceptions
-
             Firestore firestore = firebaseService.getApp();
             DocumentReference docRef = firestore.collection("user").document(client);
             ApiFuture<DocumentSnapshot> future = docRef.get();
@@ -46,7 +45,20 @@ public class AuthService {
             LOGGER.error("m=Login stage=error stacktrace={}", e.getStackTrace());
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
+    }
 
+    public ResponseEntity<?> delete(String client, String token) {
+        try {
+            checkUser(token);
+            Firestore firestore = firebaseService.getApp();
+            Map<String, String> docData = new HashMap<>();
+            ApiFuture<WriteResult> writeResult = firestore.collection("user").document(client).delete();
+            LOGGER.debug("m=Login succeeded");
+            return new ResponseEntity<>(writeResult.get().getUpdateTime(), HttpStatus.OK);
+        } catch (NoSuchElementException | ExecutionException | InterruptedException e) {
+            LOGGER.error("m=Login stage=error stacktrace={}", e.getStackTrace());
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
     }
 
     public ResponseEntity<?> validate(String token) {

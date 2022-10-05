@@ -23,6 +23,11 @@ public class AuthController {
         return authService.validate(token);
     }
 
+    @PostMapping("/delete")
+    public ResponseEntity<?> delete(@RequestHeader String client, @RequestHeader String Authorization) {
+        return authService.delete(client, Authorization);
+    }
+
     @GetMapping
     public void test() throws Exception {
         authService.test("lucio");
