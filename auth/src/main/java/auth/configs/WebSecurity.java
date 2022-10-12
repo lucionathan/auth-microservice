@@ -1,4 +1,4 @@
-package auth.security;
+package auth.configs;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -13,14 +13,14 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
-public class WebSecurityConfig {
+public class WebSecurity {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.authorizeRequests().antMatchers("/").permitAll();
-        http.csrf().disable();
-
-        return http.build();
+        return http.csrf().disable()
+                .authorizeRequests()
+                .antMatchers("/").permitAll()
+                .and().build();
     }
 
     @Bean
