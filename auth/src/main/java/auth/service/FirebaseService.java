@@ -13,35 +13,37 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
+import static com.google.auth.oauth2.GoogleCredentials.*;
+import static com.google.firebase.FirebaseApp.initializeApp;
+import static com.google.firebase.cloud.FirestoreClient.*;
+
 @Service
 public class FirebaseService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(FirebaseService.class);
-
-
-    public static final String REALTIME_DATABASE_URL = "https://test-55d75.firebaseio.com";
+    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     public static final String SERVICE_ACCOUNT_FILE = "serviceAccount.json";
+
     private Firestore app;
 
     public FirebaseService() {
-        LOGGER.debug("m=Firebase stage=init");
+        logger.debug("m=Firebase stage=init");
         try {
             var classloader = Thread.currentThread().getContextClassLoader();
             var file = new File(classloader.getResource(SERVICE_ACCOUNT_FILE).getFile());
             var serviceAccount = new FileInputStream(file);
 
-            FirebaseOptions options = FirebaseOptions.builder().setCredentials(GoogleCredentials.fromStream(serviceAccount)).build();
+            var options = FirebaseOptions.builder()
+                    .setCredentials(fromStream(serviceAccount))
+                    .build();
 
-            FirebaseApp.initializeApp(options);
-            app = FirestoreClient.getFirestore();
-
-
+            initializeApp(options);
+            app = getFirestore();
+            logger.info("m=Firebase stage=end");
         } catch (IOException e) {
-            LOGGER.error("m=Firebase stage=error stacktrace={}" , e.getStackTrace());
+            logger.error("m=Firebase stage=error on connect to firebase stacktrace={}" , e.getMessage(), e);
             System.exit(0);
         }
-        LOGGER.debug("m=Firebase stage=end");
     }
 
     public Firestore getApp() {

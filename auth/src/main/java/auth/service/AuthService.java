@@ -1,90 +1,117 @@
 package auth.service;
 
-import auth.model.UserRegisterDTO;
+import auth.model.Token;
+import auth.model.UserRegister;
 import auth.security.JwtTokenProvider;
-import com.google.api.core.ApiFuture;
-import com.google.cloud.firestore.*;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
+
+import static com.google.cloud.firestore.SetOptions.*;
+import static java.nio.charset.StandardCharsets.*;
+import static java.util.UUID.*;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AuthService.class);
+    private final Logger logger = LoggerFactory.getLogger(getClass());
+
+    public static final String SCOPE = "scope";
+
+    public static final String USERS = "users";
+
+    public static final String CLIENT_SECRET = "clientSecret";
+
+    public static final String CLIENT_ID = "clientId";
+
     private final JwtTokenProvider jwtTokenProvider;
+
     private final PasswordEncoder passwordEncoder;
+
     private final FirebaseService firebaseService;
 
-    public ResponseEntity<?> login(String client, String secret) {
-        try {
-            //TODO fix the exceptions
-            Firestore firestore = firebaseService.getApp();
-            DocumentReference docRef = firestore.collection("user").document(client);
-            ApiFuture<DocumentSnapshot> future = docRef.get();
-            System.out.println(future.get().getData().get("secret"));
-            if(future.get().getData() == null) {
-                throw new NoSuchElementException("User not found");
-            } else if (!passwordEncoder.matches(secret, (String) future.get().getData().get("secret"))) {
-                throw new IllegalArgumentException("Wrong password");
-            }
+    public Token login(String authorization) throws ExecutionException, InterruptedException {
+        logger.debug("m=login stage=init authorization={}", authorization);
 
-            LOGGER.debug("m=Login succeeded");
-            return new ResponseEntity<>(jwtTokenProvider.createToken(client), HttpStatus.OK);
-        } catch (NoSuchElementException | InterruptedException | ExecutionException e) {
-            LOGGER.error("m=Login stage=error stacktrace={}", e.getStackTrace());
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        var credentials = decodeBasicCredential(authorization);
+        var client = credentials[0];
+        var secret = credentials[1];
+
+        var firestore = firebaseService.getApp();
+        var future = firestore.collection(USERS)
+                .whereEqualTo(CLIENT_ID, client)
+                .whereEqualTo(CLIENT_SECRET, secret)
+                .get();
+        var documentsFounded = future.get().getDocuments();
+
+        if (documentsFounded.isEmpty()) {
+            logger.debug("m=login stage=error User not found clientId={} clientSecret={}", client, secret);
+            throw new NoSuchElementException("User not found");
         }
+
+        logger.info("m=Login stage=end");
+        return jwtTokenProvider.createToken(documentsFounded.get(0).getId(), (String) documentsFounded.get(0).get(SCOPE));
     }
 
-    public ResponseEntity<?> delete(String client, String token) {
-        try {
-            checkUser(token);
-            Firestore firestore = firebaseService.getApp();
-            Map<String, String> docData = new HashMap<>();
-            ApiFuture<WriteResult> writeResult = firestore.collection("user").document(client).delete();
-            LOGGER.debug("m=Login succeeded");
-            return new ResponseEntity<>(writeResult.get().getUpdateTime(), HttpStatus.OK);
-        } catch (NoSuchElementException | ExecutionException | InterruptedException e) {
-            LOGGER.error("m=Login stage=error stacktrace={}", e.getStackTrace());
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
-        }
+    private String[] decodeBasicCredential(String authorization) {
+        logger.debug("m=decodeBasicCredential stage=init authorization={}", authorization);
+        var base64Credentials = authorization.substring("Basic".length())
+                .trim();
+        var credDecoded = Base64.getDecoder()
+                .decode(base64Credentials);
+        var credentials = new String(credDecoded, UTF_8);
+        // credentials = username:password
+        var credentialsList = credentials.split(":", 2);
+        logger.info("m=decodeBasicCredential stage=end credentials={}", credentials);
+        return credentialsList;
     }
 
-    public ResponseEntity<?> validate(String token) {
-        return new ResponseEntity<>(jwtTokenProvider.validateToken(token), HttpStatus.OK);
+    public void delete(String client, String token) {
+        checkUser(token);
+        var firestore = firebaseService.getApp();
+        firestore.collection(USERS)
+                .document(client)
+                .delete();
+        logger.info("m=Login succeeded");
     }
 
-    public ResponseEntity<?> register(UserRegisterDTO user, String token) {
+    public void validate(String token) {
+        var tokenSplit = token.split(" ");
+        jwtTokenProvider.validateToken(tokenSplit[1]);
+    }
 
-        try {
-            checkUser(token);
-            Firestore firestore = firebaseService.getApp();
-            Map<String, String> docData = new HashMap<>();
-            docData.put("secret", passwordEncoder.encode(user.getSecret()));
-            ApiFuture<WriteResult> future = firestore.collection("user").document(user.getClient()).set(docData, SetOptions.merge());
+    public void register(UserRegister user, String token) {
+        logger.debug("m=register stage=init user={} token={}", user, token);
+        checkUser(token);
 
-            return new ResponseEntity<>(future, HttpStatus.OK);
-        } catch ( Exception e) {
-            LOGGER.error("m=Register stage=error stacktrace={}" + e.getStackTrace());
-            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
-        }
+        var firestore = firebaseService.getApp();
+        Map<String, String> data = new HashMap<>();
+        data.put(CLIENT_ID, user.getClientId());
+        data.put(CLIENT_SECRET, user.getClientSecret());
+        data.put(SCOPE, "user");
+
+        firestore.collection(USERS).
+                document(randomUUID().toString()).
+                set(data, merge());
+
+        logger.info("m=register stage=end");
     }
 
     private void checkUser(String token) {
-        String user = jwtTokenProvider.getUsername(jwtTokenProvider.resolveToken(token));
-        if(!user.equals("admin")) {
+        logger.debug("m=checkUser stage=init token={}", token);
+        var claims = jwtTokenProvider.getClaims(jwtTokenProvider.resolveToken(token));
+
+        if (!claims.get(SCOPE).equals("full")) {
+            logger.error("m=checkUser stage=error User without admin permissions claims={}", claims);
             throw new IllegalArgumentException("User not authorized to register");
         }
+
+        logger.info("m=checkUser stage=end");
     }
 }
