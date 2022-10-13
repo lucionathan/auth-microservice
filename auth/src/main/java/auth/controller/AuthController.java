@@ -1,36 +1,66 @@
 package auth.controller;
 
-import auth.model.UserRegisterDTO;
+import auth.model.Token;
+import auth.model.UserRegister;
 import auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import static org.springframework.http.HttpStatus.*;
 
 @RestController
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService;
+    private final Logger logger = LoggerFactory.getLogger(getClass());
+
+    private final AuthService auth;
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestHeader String client, @RequestHeader String secret) {
-        return authService.login(client, secret);
+    public ResponseEntity<Token> login(@RequestHeader("Authorization") String authHeader) {
+        try {
+            var token = auth.login(authHeader);
+            return new ResponseEntity<>(token, OK);
+        } catch (Exception e) {
+            logger.error("m=login stage=error e={}", e.getMessage(), e);
+            return new ResponseEntity<>(NOT_FOUND);
+        }
     }
 
     @PostMapping("/validate")
-    public ResponseEntity<?> validate(@RequestHeader String token) {
-        return authService.validate(token);
+    public ResponseEntity<Void> validate(@RequestHeader("Authorization") String token) {
+        try {
+            auth.validate(token);
+            return new ResponseEntity<>(NO_CONTENT);
+        } catch (Exception e) {
+            logger.error("m=validate stage=error e={}", e.getMessage(), e);
+            return new ResponseEntity<>(UNAUTHORIZED);
+        }
     }
 
-    @PostMapping("/delete")
-    public ResponseEntity<?> delete(@RequestHeader String client, @RequestHeader String Authorization) {
-        return authService.delete(client, Authorization);
+    @DeleteMapping("/credential/{id}")
+    public ResponseEntity<Void> delete(@PathVariable String id, @RequestHeader("Authorization") String authorization) {
+        try {
+            auth.delete(id, authorization);
+            return new ResponseEntity<>(NO_CONTENT);
+        } catch (Exception e) {
+            logger.error("m=delete stage=error e={}", e.getMessage(), e);
+            return new ResponseEntity<>(UNAUTHORIZED);
+        }
     }
 
-    @PutMapping("/register")
-    public ResponseEntity<?> register(@RequestBody UserRegisterDTO user, @RequestHeader String Authorization) {
-        return authService.register(user, Authorization);
+    @PostMapping("/register")
+    public ResponseEntity<Void> register(@RequestBody UserRegister user, @RequestHeader("Authorization") String authorization) {
+        try {
+            auth.register(user, authorization);
+            return new ResponseEntity<>(NO_CONTENT);
+        } catch (Exception e) {
+            logger.error("m=register stage=error e={}", e.getMessage(), e);
+            return new ResponseEntity<>(BAD_REQUEST);
+        }
     }
 
 }

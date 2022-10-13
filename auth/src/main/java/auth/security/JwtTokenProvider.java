@@ -1,65 +1,94 @@
 package auth.security;
 
-
+import auth.model.Token;
 import io.jsonwebtoken.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+
 import javax.annotation.PostConstruct;
-import javax.servlet.http.HttpServletRequest;
-import java.util.Base64;
 import java.util.Date;
+import java.util.Objects;
+
+import static io.jsonwebtoken.SignatureAlgorithm.HS256;
+import static java.util.Base64.*;
+import static java.util.Objects.*;
 
 @Component
 public class JwtTokenProvider {
+
+    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     @Value("${security.jwt.token.secret-key:secret-key}")
     private String secretKey;
 
     @Value("${security.jwt.token.expire-length:3600000}")
-    private long validityInMilliseconds = 3600000; // 1h
+    private long validityInMilliseconds;
 
     @PostConstruct
     protected void init() {
-        secretKey = Base64.getEncoder().encodeToString(secretKey.getBytes());
+        secretKey = getEncoder().encodeToString(secretKey.getBytes());
     }
 
-    public String createToken(String username) {
+    public Token createToken(String username, String scope) {
+        logger.debug("m=login stage=init username={}", username);
 
-        Claims claims = Jwts.claims().setSubject(username);
+        var claims = Jwts.claims()
+                .setSubject(username);
+        var now = new Date();
+        var validity = new Date(now.getTime() + validityInMilliseconds);
 
-        Date now = new Date();
-        Date validity = new Date(now.getTime() + validityInMilliseconds);
-
-        return Jwts.builder()
+        var tokenGenerated = Jwts.builder()
                 .setClaims(claims)
+                .claim("scope", scope)
                 .setIssuedAt(now)
                 .setExpiration(validity)
-                .signWith(SignatureAlgorithm.HS256, secretKey)
+                .signWith(HS256, secretKey)
                 .compact();
+
+        var token = Token.builder()
+                .token(tokenGenerated)
+                .type("Bearer")
+                .expiresIn(validity.getTime())
+                .build();
+        logger.info("m=login stage=end token={}", token);
+        return token;
     }
 
-    public String getUsername(String token) {
-        return Jwts.parser().setSigningKey(secretKey).parseClaimsJws(token).getBody().getSubject();
+    public Claims getClaims(String token) {
+        logger.debug("m=getUsername stage=init token={}", token);
+        var claims = Jwts.parser()
+                .setSigningKey(secretKey)
+                .parseClaimsJws(token)
+                .getBody();
+
+        logger.info("m=getUsername stage=end claims={}", claims);
+        return claims;
     }
 
     public String resolveToken(String bearerToken) {
-        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
-            return bearerToken.substring(7);
+        logger.debug("m=resolveToken stage=init bearerToken={}", bearerToken);
+        if (!isNull(bearerToken) && bearerToken.startsWith("Bearer ")) {
+            var token = bearerToken.split(" ");
+            logger.info("m=resolveToken stage=end token={}", token[1]);
+            return token[1];
         }
+        logger.info("m=resolveToken stage=end token cannot be resolved");
         return null;
     }
 
-    public boolean validateToken(String token) {
+    public void validateToken(String token) {
+        logger.debug("m=validateToken stage=init token={}", token);
         try {
             Jwts.parser().setSigningKey(secretKey).parseClaimsJws(token);
-            return true;
-        } catch(ExpiredJwtException e){
-            System.out.println("token expired for id : " + e.getMessage());
-            return false;
-        }
-        catch (JwtException | IllegalArgumentException e) {
-            System.out.println("illegal argument: " + e.getMessage());
-            return false;
+            logger.info("m=validateToken stage=end token valid");
+        } catch (ExpiredJwtException e) {
+            logger.info("m=validateToken stage=error token expired e={}", e.getMessage(), e);
+            throw e;
+        } catch (JwtException | IllegalArgumentException e) {
+            logger.info("m=validateToken stage=error generic error e={}", e.getMessage(), e);
+            throw e;
         }
     }
 }
